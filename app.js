@@ -41,7 +41,16 @@ const key = "stc_session_v1";
 let session = null, answers = Array(30).fill(0), saveTimer = null, pollTimer = null;
 
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-function set(html){app.innerHTML=html;}
+function set(html){
+ app.innerHTML=html;
+ if(session){
+  const reset=document.createElement("button");
+  reset.type="button";reset.className="btn danger full reset-all";
+  reset.textContent="Clear all sessions & start fresh";
+  reset.addEventListener("click",clearAllSessions);
+  app.appendChild(reset);
+ }
+}
 function btn(label,fn,cls="btn"){return `<button class="${cls}" id="mainBtn">${label}</button>`;}
 function loading(msg="One moment…"){set(`<div class="loading"><div class="spinner"></div><p>${msg}</p></div>`);}
 async function api(action,data={}){
@@ -55,9 +64,23 @@ function showError(err){const old=document.querySelector(".toast");if(old)old.te
 function saveSession(s){session=s;localStorage.setItem(key,JSON.stringify(s));}
 function getSession(){try{return JSON.parse(localStorage.getItem(key)||"null")}catch{return null}}
 function home(){
- set(`<div class="center"><div class="intro-icon">💌</div><span class="pill">YOUR PRIVATE COUPLE ROOM</span><h2 style="margin-top:13px">Two hearts. Two honest answers.</h2><p class="muted">Answer separately, without comparing notes. Your answers stay hidden until you have both completed all 30 questions.</p><div class="notice">♡ This is a reflection exercise, not a scientific relationship diagnosis. There are no right or wrong answers.</div><button class="btn full" id="create">Create our couple room</button><p class="muted" style="margin-top:13px">Already have an invitation? <a href="#" id="joinLink" style="color:#bd668d">Join Tanu's / Suresh's room</a></p><p class="toast" id="homeToast"></p></div>`);
+ set(`<div class="center"><div class="intro-icon">💌</div><span class="pill">YOUR PRIVATE COUPLE ROOM</span><h2 style="margin-top:13px">Two hearts. Two honest answers.</h2><p class="muted">Answer separately, without comparing notes. Your answers stay hidden until you have both completed all 30 questions.</p><div class="notice">♡ This is a reflection exercise, not a scientific relationship diagnosis. There are no right or wrong answers.</div><button class="btn full" id="create">Create our couple room</button><p class="muted" style="margin-top:13px">Already have an invitation? <a href="#" id="joinLink" style="color:#bd668d">Join Tanu's / Suresh's room</a></p><p class="toast" id="homeToast"></p><button class="btn secondary full" id="clearLocal">Clear saved session on this device</button></div>`);
  document.getElementById("create").onclick=createRoom;
+ document.getElementById("clearLocal").onclick=()=>{if(confirm("Clear the saved session on this device? This does not delete an active shared room unless you use the Clear all sessions button inside it.")){localStorage.removeItem(key);answers=Array(30).fill(0);document.getElementById("homeToast").textContent="Saved session cleared on this device.";}};
  document.getElementById("joinLink").onclick=e=>{e.preventDefault();joinPrompt();};
+}
+async function clearAllSessions(){
+ if(!session){localStorage.removeItem(key);answers=Array(30).fill(0);home();return;}
+ const confirmed=confirm("This permanently deletes the current couple room, both participants' saved answers, and both sessions. Suresh and Tanu will need to create a new room. Continue?");
+ if(!confirmed)return;
+ clearTimeout(saveTimer);clearInterval(pollTimer);
+ try{
+  await api("reset_room",{room:session.room,token:session.token});
+  localStorage.removeItem(key);session=null;answers=Array(30).fill(0);
+  const cleanUrl=location.pathname;
+  history.replaceState({},"",cleanUrl);
+  home();
+ }catch(e){showError(e);}
 }
 async function createRoom(){
  try{loading("Creating your private room…");const r=await api("create_room");const s={room:r.room,role:"suresh",token:r.token};saveSession(s);showInvite(r.invite_url);}
